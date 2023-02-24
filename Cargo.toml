@@ -8,4 +8,5 @@ edition = "2021"
 [dependencies]
 glow = "0.12.1"
 imgui = "0.10.0"
+num-traits = "0.2.15"
 sdl2 = "0.35.2"
