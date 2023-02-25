@@ -21,6 +21,7 @@ struct State {
     pub ry: f64,
     pub rz: f64,
     pub divisions: u32,
+    pub light_intensity: f64,
 }
 
 const VERTEX_SHADER_SOURCE: &str = r#"
@@ -60,18 +61,19 @@ fn build_ui(ui: &mut imgui::Ui, state: &mut State) {
         .size([500.0, 500.0], imgui::Condition::FirstUseEver)
         .build(|| {
             ui.text("Ellipsoid control");
-            ui.separator();
 
             ui.slider("r_x", 0.0, 1.0, &mut state.rx);
             ui.slider("r_y", 0.0, 1.0, &mut state.ry);
             ui.slider("r_z", 0.0, 1.0, &mut state.rz);
 
             ui.separator();
-            ui.separator();
 
             ui.text("Render control");
-            ui.separator();
             ui.slider("Max render division", 1, 64, &mut state.divisions);
+
+            ui.separator();
+            ui.text("Light control");
+            ui.slider("Intensity", 0.0, 1.0, &mut state.light_intensity);
         });
 }
 
@@ -84,6 +86,7 @@ fn main() {
         ry: 0.5,
         rz: 0.5,
         divisions: 16,
+        light_intensity: 0.5
     };
 
     let mut shaders = [
@@ -138,7 +141,6 @@ fn main() {
             window.request_redraw();
         }
         glutin::event::Event::RedrawRequested(_) => {
-            println!("{:?}", state);
             let gl = window.gl();
             unsafe {
                 gl.clear(glow::COLOR_BUFFER_BIT);
