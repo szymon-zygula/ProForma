@@ -3,34 +3,38 @@ use std;
 
 #[derive(Clone)]
 pub struct Matrix<T: Float, const M: usize, const N: usize> {
-    data: [[T; M]; N],
+    data: [[T; N]; M],
 }
 
 impl<T: Float, const M: usize, const N: usize> Matrix<T, M, N> {
     pub fn zero() -> Matrix<T, M, N> {
-        let data: [[T; M]; N] = [[T::from(0.0).unwrap(); M]; N];
+        let data = [[T::from(0.0).unwrap(); N]; M];
         Matrix::<T, M, N> { data }
     }
 
     pub unsafe fn uninit() -> Matrix<T, M, N> {
-        let data: [[T; M]; N] = std::mem::MaybeUninit::uninit().assume_init();
+        let data = std::mem::MaybeUninit::uninit().assume_init();
+        Matrix::<T, M, N> { data }
+    }
+
+    pub fn from_data(data: [[T; N]; M]) -> Matrix<T, M, N> {
         Matrix::<T, M, N> { data }
     }
 
     pub fn at(&self, row: usize, col: usize) -> T {
-        self.data[col][row]
+        self.data[row][col]
     }
 
     pub fn at_mut(&mut self, row: usize, col: usize) -> &mut T {
-        &mut self.data[col][row]
+        &mut self.data[row][col]
     }
 
     pub fn transpose(&self) -> Matrix<T, N, M> {
         let mut result = unsafe { Matrix::<T, N, M>::uninit() };
 
-        for i in 0..M {
-            for j in 0..N {
-                result.data[i][j] = self.data[j][i];
+        for row in 0..M {
+            for col in 0..N {
+                result.data[col][row] = self.data[row][col];
             }
         }
 
@@ -62,9 +66,9 @@ impl<T: Float, const M: usize, const N: usize> std::ops::Add<Matrix<T, M, N>> fo
     fn add(self, rhs: Matrix<T, M, N>) -> Self::Output {
         let mut result = unsafe { Self::Output::uninit() };
 
-        for i in 0..M {
-            for j in 0..N {
-                result.data[i][j] = self.data[i][j] + rhs.data[i][j];
+        for row in 0..M {
+            for col in 0..N {
+                result.data[row][col] = self.data[row][col] + rhs.data[row][col];
             }
         }
 
@@ -81,9 +85,9 @@ impl<T: Float + std::ops::AddAssign<T>, const M: usize, const N: usize, const L:
         let mut result = Self::Output::zero();
 
         for i in 0..M {
-            for j in 0..N {
-                for k in 0..L {
-                    result.data[i][j] += self.data[k][j] * rhs.data[i][k];
+            for j in 0..L {
+                for k in 0..N {
+                    result.data[i][j] += self.data[i][k] * rhs.data[k][j];
                 }
             }
         }
