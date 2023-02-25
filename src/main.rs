@@ -10,9 +10,9 @@ const WINDOW_TITLE: &'static str = "ProForma";
 const WINDOW_WIDTH: u32 = 1280;
 const WINDOW_HEIGHT: u32 = 720;
 const CLEAR_COLOR: Color = Color {
-    r: 0.5,
-    g: 0.5,
-    b: 1.0,
+    r: 0.4,
+    g: 0.4,
+    b: 0.4,
     a: 1.0,
 };
 

@@ -1,7 +1,7 @@
 use num_traits::Float;
 use std;
 
-#[derive(Clone)]
+#[derive(Clone, Copy, Debug)]
 pub struct Matrix<T: Float, const M: usize, const N: usize> {
     data: [[T; N]; M],
 }
@@ -30,7 +30,7 @@ impl<T: Float, const M: usize, const N: usize> Matrix<T, M, N> {
     }
 
     pub fn transpose(&self) -> Matrix<T, N, M> {
-        let mut result = unsafe { Matrix::<T, N, M>::uninit() };
+        let mut result = unsafe { Matrix::uninit() };
 
         for row in 0..M {
             for col in 0..N {
@@ -43,8 +43,12 @@ impl<T: Float, const M: usize, const N: usize> Matrix<T, M, N> {
 }
 
 impl<T: Float, const M: usize> Matrix<T, M, M> {
+    pub fn identity() -> Matrix<T, M, M> {
+        Self::diagonal(&[T::from(1.0).unwrap(); M])
+    }
+
     pub fn diagonal(diagonal_values: &[T; M]) -> Matrix<T, M, M> {
-        let mut result = Matrix::<T, M, M>::zero();
+        let mut result = Matrix::zero();
 
         for i in 0..M {
             result.data[i][i] = diagonal_values[i];
