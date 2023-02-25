@@ -1,11 +1,5 @@
-mod forms;
-mod math;
-mod primitives;
-mod window;
-
-use glow::HasContext;
-use primitives::color::Color;
-use window::Window;
+use proforma::primitives::color::Color;
+use proforma::window::Window;
 
 use std::time::Instant;
 

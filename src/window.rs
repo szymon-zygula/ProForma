@@ -1,8 +1,7 @@
 use crate::primitives::color::Color;
-use glow::*;
 
 use glow::HasContext;
-use glutin::{event_loop::EventLoop, WindowedContext};
+use glutin::event_loop::EventLoop;
 use imgui_glow_renderer;
 use imgui_winit_support::WinitPlatform;
 
