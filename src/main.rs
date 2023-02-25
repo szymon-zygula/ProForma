@@ -86,7 +86,7 @@ fn main() {
         ry: 0.5,
         rz: 0.5,
         divisions: 16,
-        light_intensity: 0.5
+        light_intensity: 0.5,
     };
 
     let mut shaders = [
@@ -130,17 +130,16 @@ fn main() {
 
     window.set_clear_color(CLEAR_COLOR);
 
+    use glutin::event::{Event, WindowEvent};
     event_loop.run(move |event, _, control_flow| match event {
-        glutin::event::Event::NewEvents(_) => {
+        Event::NewEvents(_) => {
             let now = Instant::now();
             let duration = now.duration_since(last_frame);
             window.update_delta_time(duration);
             last_frame = now;
         }
-        glutin::event::Event::MainEventsCleared => {
-            window.request_redraw();
-        }
-        glutin::event::Event::RedrawRequested(_) => {
+        Event::MainEventsCleared => window.request_redraw(),
+        Event::RedrawRequested(_) => {
             let gl = window.gl();
             unsafe {
                 gl.clear(glow::COLOR_BUFFER_BIT);
@@ -151,13 +150,11 @@ fn main() {
 
             window.render(|ui| build_ui(ui, &mut state));
         }
-        glutin::event::Event::WindowEvent {
-            event: glutin::event::WindowEvent::CloseRequested,
+        Event::WindowEvent {
+            event: WindowEvent::CloseRequested,
             ..
-        } => {
-            *control_flow = glutin::event_loop::ControlFlow::Exit;
-        }
-        glutin::event::Event::LoopDestroyed => unsafe {
+        } => *control_flow = glutin::event_loop::ControlFlow::Exit,
+        Event::LoopDestroyed => unsafe {
             window.gl().delete_program(program);
             window.gl().delete_vertex_array(vertex_array);
         },
