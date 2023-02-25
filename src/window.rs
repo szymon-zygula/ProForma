@@ -84,11 +84,11 @@ impl Window {
         self.window_context.window().request_redraw();
     }
 
-    pub fn render(&mut self, ui_drawer: fn(&mut imgui::Ui)) {
+    pub fn render<F: FnOnce(&mut imgui::Ui)>(&mut self, build_ui: F) {
         unsafe { self.gl().clear(glow::COLOR_BUFFER_BIT) };
 
         let ui = self.imgui_context.frame();
-        ui_drawer(ui);
+        build_ui(ui);
 
         self.winit_platform
             .prepare_render(ui, self.window_context.window());
