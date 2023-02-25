@@ -15,6 +15,7 @@ const CLEAR_COLOR: Color = Color {
     a: 1.0,
 };
 
+#[derive(Debug)]
 struct State {
     pub rx: f64,
     pub ry: f64,
@@ -137,6 +138,7 @@ fn main() {
             window.request_redraw();
         }
         glutin::event::Event::RedrawRequested(_) => {
+            println!("{:?}", state);
             let gl = window.gl();
             unsafe {
                 gl.clear(glow::COLOR_BUFFER_BIT);

@@ -1,10 +1,31 @@
 use crate::math::matrix::Matrix;
 
 type AffineElement = Matrix<f64, 4, 1>;
+type TransposedAffineElement = Matrix<f64, 1, 4>;
 
 #[derive(Clone, Copy, Debug)]
 pub struct Point {
     affine: AffineElement,
+}
+
+macro_rules! impl_affine_basics {
+    () => {
+        pub fn at(&self, i: usize) -> f64 {
+            self.affine.at(i, 0)
+        }
+
+        pub fn at_mut(&mut self, i: usize) -> &mut f64 {
+            self.affine.at_mut(i, 0)
+        }
+
+        pub fn as_matrix(&self) -> AffineElement {
+            self.affine
+        }
+
+        pub fn as_transpose(&self) -> TransposedAffineElement {
+            self.affine.transpose()
+        }
+    };
 }
 
 impl Point {
@@ -23,17 +44,7 @@ impl Point {
         Point { affine }
     }
 
-    pub fn at(&self, i: usize) -> f64 {
-        self.affine.at(i, 0)
-    }
-
-    pub fn at_mut(&mut self, i: usize) -> &mut f64 {
-        self.affine.at_mut(i, 0)
-    }
-
-    pub fn as_matrix(&self) -> AffineElement {
-        self.affine
-    }
+    impl_affine_basics!();
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -58,17 +69,7 @@ impl Vector {
         Vector { affine }
     }
 
-    pub fn at(&self, i: usize) -> f64 {
-        self.affine.at(i, 0)
-    }
-
-    pub fn at_mut(&mut self, i: usize) -> &mut f64 {
-        self.affine.at_mut(i, 0)
-    }
-
-    pub fn as_matrix(&self) -> AffineElement {
-        self.affine
-    }
+    impl_affine_basics!();
 }
 
 impl std::ops::Mul<Vector> for Vector {
