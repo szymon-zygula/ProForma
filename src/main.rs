@@ -3,8 +3,11 @@ mod math;
 mod primitives;
 mod window;
 
+use glow::HasContext;
 use primitives::color::Color;
 use window::Window;
+
+use std::time::Instant;
 
 const WINDOW_TITLE: &'static str = "ProForma";
 const WINDOW_WIDTH: u32 = 1280;
@@ -17,28 +20,34 @@ const CLEAR_COLOR: Color = Color {
 };
 
 fn main() {
-    let mut window = Window::new(WINDOW_TITLE, WINDOW_WIDTH, WINDOW_HEIGHT);
+    let (mut window, event_loop) = Window::new(WINDOW_TITLE, WINDOW_WIDTH, WINDOW_HEIGHT);
+    let mut last_frame = Instant::now();
 
-    window.set_clear_color(&CLEAR_COLOR);
+    window.set_clear_color(CLEAR_COLOR);
 
-    'render_loop: loop {
-        for event in window.events() {
-            match event {
-                sdl2::event::Event::Quit { .. } => break 'render_loop,
-                sdl2::event::Event::Window {
-                    timestamp: _,
-                    window_id: _,
-                    win_event,
-                } => match win_event {
-                    sdl2::event::WindowEvent::Resized(width, height) => {
-                        println!("Window resized to {}x{}", width, height)
-                    }
-                    _ => {}
-                },
-                _ => {}
-            }
+    event_loop.run(move |event, _, control_flow| match event {
+        glutin::event::Event::NewEvents(_) => {
+            let now = Instant::now();
+            let duration = now.duration_since(last_frame);
+            window.update_delta_time(duration);
+            last_frame = now;
         }
-
-        window.refresh();
-    }
+        glutin::event::Event::MainEventsCleared => {
+            window.request_redraw();
+        }
+        glutin::event::Event::RedrawRequested(_) => {
+            window.render(|ui| {
+                ui.show_demo_window(&mut true);
+            });
+        }
+        glutin::event::Event::WindowEvent {
+            event: glutin::event::WindowEvent::CloseRequested,
+            ..
+        } => {
+            *control_flow = glutin::event_loop::ControlFlow::Exit;
+        }
+        event => {
+            window.handle_event(event);
+        }
+    });
 }
