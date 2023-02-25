@@ -60,7 +60,7 @@ impl Window {
         )
     }
 
-    pub unsafe fn gl(&mut self) -> &glow::Context {
+    pub fn gl(&mut self) -> &glow::Context {
         self.imgui_renderer.gl_context()
     }
 
@@ -84,8 +84,6 @@ impl Window {
     }
 
     pub fn render<F: FnOnce(&mut imgui::Ui)>(&mut self, build_ui: F) {
-        unsafe { self.gl().clear(glow::COLOR_BUFFER_BIT) };
-
         let ui = self.imgui_context.frame();
         build_ui(ui);
 

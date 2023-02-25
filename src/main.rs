@@ -3,6 +3,8 @@ use proforma::window::Window;
 
 use std::time::Instant;
 
+use glow::HasContext;
+
 const WINDOW_TITLE: &'static str = "ProForma";
 const WINDOW_WIDTH: u32 = 1280;
 const WINDOW_HEIGHT: u32 = 720;
@@ -19,6 +21,38 @@ struct State {
     pub rz: f64,
     pub divisions: u32,
 }
+
+const VERTEX_SHADER_SOURCE: &str = r#"
+#version 330
+
+const vec2 verts[3] = vec2[3](
+    vec2(0.5f, 1.0f),
+    vec2(0.0f, 0.0f),
+    vec2(1.0f, 0.0f)
+);
+
+out vec2 vert;
+out vec4 color;
+
+void main() {
+    vert = verts[gl_VertexID];
+    color = vec4(vert, 0.25, 1);
+    gl_Position = vec4(vert - 0.5, 0.0, 1.0);
+}
+"#;
+
+const FRAGMENT_SHADER_SOURCE: &str = r#"
+#version 330
+
+in vec2 vert;
+in vec4 color;
+
+out vec4 frag_color;
+
+void main() {
+    frag_color = color;
+}
+"#;
 
 fn build_ui(ui: &mut imgui::Ui, state: &mut State) {
     ui.window("ProForma")
@@ -51,6 +85,45 @@ fn main() {
         divisions: 16,
     };
 
+    let mut shaders = [
+        (glow::VERTEX_SHADER, VERTEX_SHADER_SOURCE, 0),
+        (glow::FRAGMENT_SHADER, FRAGMENT_SHADER_SOURCE, 0),
+    ];
+
+    let gl = window.gl();
+
+    let vertex_array = unsafe { gl.create_vertex_array() }.unwrap();
+    let program = unsafe { gl.create_program() }.unwrap();
+
+    for (kind, source, handle) in &mut shaders {
+        unsafe {
+            let shader = gl.create_shader(*kind).unwrap();
+            gl.shader_source(shader, *source);
+            gl.compile_shader(shader);
+
+            if !gl.get_shader_compile_status(shader) {
+                panic!("Error compiling shader: {}", gl.get_shader_info_log(shader));
+            }
+
+            gl.attach_shader(program, shader);
+            *handle = shader;
+        }
+    }
+
+    unsafe { gl.link_program(program) };
+    if unsafe { !gl.get_program_link_status(program) } {
+        panic!("Error linking shader: {}", unsafe {
+            gl.get_program_info_log(program)
+        });
+    }
+
+    for &(_, _, shader) in &shaders {
+        unsafe {
+            gl.detach_shader(program, shader);
+            gl.delete_shader(shader);
+        }
+    }
+
     window.set_clear_color(CLEAR_COLOR);
 
     event_loop.run(move |event, _, control_flow| match event {
@@ -64,6 +137,14 @@ fn main() {
             window.request_redraw();
         }
         glutin::event::Event::RedrawRequested(_) => {
+            let gl = window.gl();
+            unsafe {
+                gl.clear(glow::COLOR_BUFFER_BIT);
+                gl.use_program(Some(program));
+                gl.bind_vertex_array(Some(vertex_array));
+                gl.draw_arrays(glow::TRIANGLES, 0, 3);
+            }
+
             window.render(|ui| build_ui(ui, &mut state));
         }
         glutin::event::Event::WindowEvent {
@@ -72,6 +153,10 @@ fn main() {
         } => {
             *control_flow = glutin::event_loop::ControlFlow::Exit;
         }
+        glutin::event::Event::LoopDestroyed => unsafe {
+            window.gl().delete_program(program);
+            window.gl().delete_vertex_array(vertex_array);
+        },
         event => {
             window.handle_event(event);
         }
