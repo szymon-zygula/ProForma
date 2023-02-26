@@ -21,6 +21,11 @@ impl<T: Float, const M: usize, const N: usize> Matrix<T, M, N> {
         Matrix::<T, M, N> { data }
     }
 
+    pub fn raw(&self) -> &[T] {
+        // TODO: use `slice::flatten` if it ever gets into stable
+        unsafe { std::slice::from_raw_parts(self.data.as_ptr().cast(), N * M) }
+    }
+
     pub fn at(&self, row: usize, col: usize) -> T {
         self.data[row][col]
     }
@@ -35,6 +40,18 @@ impl<T: Float, const M: usize, const N: usize> Matrix<T, M, N> {
         for row in 0..M {
             for col in 0..N {
                 result.data[col][row] = self.data[row][col];
+            }
+        }
+
+        result
+    }
+
+    pub fn with_type<U: Float>(&self) -> Matrix<U, M, N> {
+        let mut result = unsafe { Matrix::<U, M, N>::uninit() };
+
+        for row in 0..M {
+            for col in 0..N {
+                result.data[row][col] = U::from(self.data[row][col]).unwrap();
             }
         }
 
@@ -97,5 +114,34 @@ impl<T: Float + std::ops::AddAssign<T>, const M: usize, const N: usize, const L:
         }
 
         result
+    }
+}
+
+impl<T, const M: usize, const N: usize> std::fmt::Display for Matrix<T, M, N>
+where
+    T: Float + std::fmt::Display,
+{
+    fn fmt(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+        let write_row = |row: usize, formatter: &mut std::fmt::Formatter| -> std::fmt::Result {
+            write!(formatter, "[")?;
+            for col in 0..(N - 1) {
+                write!(formatter, "{}, ", self.data[row][col])?;
+            }
+
+            write!(formatter, "{}]", self.data[row][N - 1])?;
+            Ok(())
+        };
+
+        write!(formatter, "[")?;
+
+        for row in 0..(M - 1) {
+            write_row(row, formatter)?;
+            write!(formatter, "\n ")?;
+        }
+
+        write_row(M - 1, formatter)?;
+        write!(formatter, "]\n")?;
+
+        Ok(())
     }
 }
