@@ -73,6 +73,7 @@ void main() {
 "#;
 
 fn build_ui(ui: &mut imgui::Ui, state: &mut State) {
+    ui.show_demo_window(&mut true);
     ui.window("ProForma")
         .size([500.0, 500.0], imgui::Condition::FirstUseEver)
         .build(|| {
