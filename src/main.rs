@@ -1,5 +1,8 @@
-use proforma::primitives::color::Color;
-use proforma::window::Window;
+use proforma::{
+    forms::{ellipsoid::Ellipsoid, implicit::QuadraticForm},
+    primitives::color::Color,
+    window::Window,
+};
 
 use std::time::Instant;
 
@@ -27,19 +30,20 @@ struct State {
 const VERTEX_SHADER_SOURCE: &str = r#"
 #version 330
 
-const vec2 verts[3] = vec2[3](
-    vec2(0.5f, 1.0f),
-    vec2(0.0f, 0.0f),
-    vec2(1.0f, 0.0f)
+const vec2 verts[6] = vec2[6](
+    vec2(-1.0f,  1.0f),
+    vec2( 1.0f,  1.0f),
+    vec2(-1.0f, -1.0f),
+    vec2(-1.0f, -1.0f),
+    vec2( 1.0f,  1.0f),
+    vec2( 1.0f, -1.0f)
 );
 
 out vec2 vert;
-out vec4 color;
 
 void main() {
     vert = verts[gl_VertexID];
-    color = vec4(vert, 0.25, 1);
-    gl_Position = vec4(vert - 0.5, 0.0, 1.0);
+    gl_Position = vec4(vert, 0.0, 1.0);
 }
 "#;
 
@@ -47,12 +51,24 @@ const FRAGMENT_SHADER_SOURCE: &str = r#"
 #version 330
 
 in vec2 vert;
-in vec4 color;
 
 out vec4 frag_color;
 
+uniform mat4 qf;
+
 void main() {
-    frag_color = color;
+    float free_term = dot(vert.x * qf[0].xyw + vert.y * qf[1].xyw + qf[3].xyw, vec3(vert.xy, 1));
+    float line_term = dot(qf[2].xyw + vec3(qf[0].z, qf[1].z, qf[3].z), vec3(vert.xy, 1));
+    float quad_term = qf[2].z;
+
+    float delta = line_term * line_term - 4 * free_term * quad_term;
+
+    if(delta >= 0.0) {
+        frag_color = vec4(1.0, 1.0, 0.0, 1.0);
+    }
+    else {
+        frag_color = vec4(0.5, 0.5, 0.5, 1.0);
+    }
 }
 "#;
 
@@ -141,11 +157,21 @@ fn main() {
         Event::MainEventsCleared => window.request_redraw(),
         Event::RedrawRequested(_) => {
             let gl = window.gl();
+            let ellipsoid = Ellipsoid::with_radii(state.rx, state.ry, state.rz);
+
             unsafe {
                 gl.clear(glow::COLOR_BUFFER_BIT);
                 gl.use_program(Some(program));
+
+                let quadratic_form_location = gl.get_uniform_location(program, "qf").unwrap();
+                gl.uniform_matrix_4_f32_slice(
+                    Some(&quadratic_form_location),
+                    true,
+                    ellipsoid.quadratic_form_matrix().with_type::<f32>().raw(),
+                );
+
                 gl.bind_vertex_array(Some(vertex_array));
-                gl.draw_arrays(glow::TRIANGLES, 0, 3);
+                gl.draw_arrays(glow::TRIANGLES, 0, 6);
             }
 
             window.render(|ui| build_ui(ui, &mut state));
