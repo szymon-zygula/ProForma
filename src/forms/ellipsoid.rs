@@ -1,7 +1,4 @@
-use crate::{
-    forms::implicit::ImplicitForm,
-    math::affine::{primitives::Point, transforms::*},
-};
+use crate::{forms::implicit::*, math::affine::transforms::*};
 
 pub struct Ellipsoid {
     a: f64,
@@ -19,10 +16,8 @@ impl Ellipsoid {
     }
 }
 
-impl ImplicitForm for Ellipsoid {
-    fn implicit_form(&self, u: Point) -> f64 {
-        let ellipsoid_matrix = AffineTransform::diagonal(&[self.a, self.b, self.c, -1.0]);
-
-        (u.as_transpose() * ellipsoid_matrix * u.as_matrix()).num()
+impl QuadraticForm for Ellipsoid {
+    fn quadratic_form_matrix(&self) -> AffineTransform {
+        AffineTransform::diagonal(&[self.a, self.b, self.c, -1.0])
     }
 }
