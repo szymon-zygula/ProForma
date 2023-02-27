@@ -59,6 +59,10 @@ impl Vector {
         }
     }
 
+    pub fn to_point(point: Point) -> Vector {
+        Self::new(point.at(0), point.at(1), point.at(2))
+    }
+
     pub fn from_affine(affine: AffineElement) -> Vector {
         assert!(
             affine.at(3, 0) == 0.0,
@@ -97,3 +101,19 @@ macro_rules! impl_affine_add {
 impl_affine_add!(Vector + Vector -> Vector);
 impl_affine_add!(Vector + Point -> Point);
 impl_affine_add!(Point + Vector -> Point);
+
+impl std::ops::Neg for Vector {
+    type Output = Vector;
+
+    fn neg(self) -> Self::Output {
+        Vector::new(-self.at(0), -self.at(1), -self.at(2))
+    }
+}
+
+impl std::ops::Neg for Point {
+    type Output = Point;
+
+    fn neg(self) -> Self::Output {
+        Point::new(-self.at(0), -self.at(1), -self.at(2))
+    }
+}

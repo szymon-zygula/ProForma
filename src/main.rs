@@ -1,5 +1,10 @@
 use proforma::{
     forms::{ellipsoid::Ellipsoid, implicit::QuadraticForm},
+    math::affine::{
+        self,
+        primitives::{Point, Vector},
+        transforms::AffineTransform,
+    },
     primitives::color::Color,
     window::Window,
 };
@@ -25,6 +30,12 @@ struct State {
     pub rz: f64,
     pub divisions: u32,
     pub light_intensity: f64,
+    pub left_mouse_button_down: bool,
+    pub right_mouse_button_down: bool,
+    pub current_mouse_position: Option<glutin::dpi::PhysicalPosition<f64>>,
+    pub previous_mouse_position: Option<glutin::dpi::PhysicalPosition<f64>>,
+    pub camera_position: Point,
+    pub scale: f64,
 }
 
 const VERTEX_SHADER_SOURCE: &str = r#"
@@ -78,19 +89,23 @@ fn build_ui(ui: &mut imgui::Ui, state: &mut State) {
         .size([500.0, 500.0], imgui::Condition::FirstUseEver)
         .build(|| {
             ui.text("Ellipsoid control");
-
             ui.slider("r_x", 0.0, 1.0, &mut state.rx);
             ui.slider("r_y", 0.0, 1.0, &mut state.ry);
             ui.slider("r_z", 0.0, 1.0, &mut state.rz);
 
             ui.separator();
-
             ui.text("Render control");
             ui.slider("Max render division", 1, 64, &mut state.divisions);
 
             ui.separator();
             ui.text("Light control");
             ui.slider("Intensity", 0.0, 1.0, &mut state.light_intensity);
+
+            ui.separator();
+            ui.text("Camera control");
+            ui.slider("X", -1.0, 1.0, state.camera_position.at_mut(0));
+            ui.slider("Y", -1.0, 1.0, state.camera_position.at_mut(1));
+            ui.slider("Z", -1.0, 1.0, state.camera_position.at_mut(2));
         });
 }
 
@@ -98,12 +113,19 @@ fn main() {
     let (mut window, event_loop) = Window::new(WINDOW_TITLE, WINDOW_WIDTH, WINDOW_HEIGHT);
     let mut last_frame = Instant::now();
 
-    let mut state = State {
+    let mut app_state = State {
         rx: 0.5,
         ry: 0.5,
         rz: 0.5,
         divisions: 16,
         light_intensity: 0.5,
+        left_mouse_button_down: false,
+        right_mouse_button_down: false,
+        current_mouse_position: None,
+        previous_mouse_position: None,
+
+        camera_position: Point::new(0.0, 0.0, 0.0),
+        scale: 1.0,
     };
 
     let mut shaders = [
@@ -148,6 +170,7 @@ fn main() {
     window.set_clear_color(CLEAR_COLOR);
 
     use glutin::event::{Event, WindowEvent};
+
     event_loop.run(move |event, _, control_flow| match event {
         Event::NewEvents(_) => {
             let now = Instant::now();
@@ -158,24 +181,46 @@ fn main() {
         Event::MainEventsCleared => window.request_redraw(),
         Event::RedrawRequested(_) => {
             let gl = window.gl();
-            let ellipsoid = Ellipsoid::with_radii(state.rx, state.ry, state.rz);
+            let ellipsoid = Ellipsoid::with_radii(app_state.rx, app_state.ry, app_state.rz);
 
             unsafe {
                 gl.clear(glow::COLOR_BUFFER_BIT);
                 gl.use_program(Some(program));
 
+                let transform_matrix =
+                    affine::transforms::translate(-Vector::to_point(app_state.camera_position));
+
+                let quadratic_form_matrix =
+                    if let Some(inverse_transform_matrix) = transform_matrix.inverse() {
+                        inverse_transform_matrix.transpose()
+                            * ellipsoid.quadratic_form_matrix()
+                            * inverse_transform_matrix
+                    } else {
+                        AffineTransform::identity()
+                    };
+
                 let quadratic_form_location = gl.get_uniform_location(program, "qf").unwrap();
                 gl.uniform_matrix_4_f32_slice(
                     Some(&quadratic_form_location),
                     true,
-                    ellipsoid.quadratic_form_matrix().with_type::<f32>().raw(),
+                    quadratic_form_matrix.with_type::<f32>().raw(),
                 );
 
                 gl.bind_vertex_array(Some(vertex_array));
                 gl.draw_arrays(glow::TRIANGLES, 0, 6);
             }
 
-            window.render(|ui| build_ui(ui, &mut state));
+            window.render(|ui| build_ui(ui, &mut app_state));
+        }
+        Event::WindowEvent {
+            event:
+                WindowEvent::MouseWheel {
+                    delta: glutin::event::MouseScrollDelta::LineDelta(_, delta),
+                    ..
+                },
+            ..
+        } => {
+            // TODO
         }
         Event::WindowEvent {
             event: WindowEvent::CloseRequested,
@@ -186,6 +231,45 @@ fn main() {
             window.gl().delete_vertex_array(vertex_array);
         },
         event => {
+            match event {
+                Event::WindowEvent {
+                    event: WindowEvent::MouseInput { state, button, .. },
+                    ..
+                } => {
+                    use glutin::event::{ElementState, MouseButton};
+                    match (state, button) {
+                        (ElementState::Pressed, MouseButton::Left) => {
+                            app_state.left_mouse_button_down = true
+                        }
+
+                        (ElementState::Released, MouseButton::Left) => {
+                            app_state.left_mouse_button_down = false
+                        }
+                        (ElementState::Pressed, MouseButton::Right) => {
+                            app_state.right_mouse_button_down = true
+                        }
+                        (ElementState::Released, MouseButton::Right) => {
+                            app_state.right_mouse_button_down = false
+                        }
+                        _ => {}
+                    }
+                }
+                Event::WindowEvent {
+                    event: WindowEvent::CursorLeft { .. },
+                    ..
+                } => {
+                    app_state.left_mouse_button_down = false;
+                    app_state.right_mouse_button_down = false;
+                }
+                Event::WindowEvent {
+                    event: WindowEvent::CursorMoved { position, .. },
+                    ..
+                } => {
+                    app_state.previous_mouse_position = app_state.current_mouse_position;
+                    app_state.current_mouse_position = Some(position);
+                }
+                _ => {}
+            }
             window.handle_event(event);
         }
     });
