@@ -16,6 +16,7 @@ use glow::HasContext;
 const WINDOW_TITLE: &'static str = "ProForma";
 const WINDOW_WIDTH: u32 = 1280;
 const WINDOW_HEIGHT: u32 = 720;
+const GLOBAL_SCALE: f32 = 1000.0;
 const CLEAR_COLOR: Color = Color {
     r: 0.4,
     g: 0.4,
@@ -36,6 +37,7 @@ struct State {
     pub previous_mouse_position: Option<glutin::dpi::PhysicalPosition<f64>>,
     pub camera_position: Point,
     pub scale: f64,
+    pub resolution: glutin::dpi::PhysicalSize<u32>,
 }
 
 const VERTEX_SHADER_SOURCE: &str = r#"
@@ -66,10 +68,13 @@ in vec2 vert;
 out vec4 frag_color;
 
 uniform mat4 qf;
+uniform vec2 resolution;
+uniform float global_scale;
 
 void main() {
-    float free_term = dot(vert.x * qf[0].xyw + vert.y * qf[1].xyw + qf[3].xyw, vec3(vert.xy, 1));
-    float line_term = dot(qf[2].xyw + vec3(qf[0].z, qf[1].z, qf[3].z), vec3(vert.xy, 1));
+    vec2 coord = vec2(vert.x * resolution.x, vert.y * resolution.y) / global_scale;
+    float free_term = dot(coord.x * qf[0].xyw + coord.y * qf[1].xyw + qf[3].xyw, vec3(coord.xy, 1));
+    float line_term = dot(qf[2].xyw + vec3(qf[0].z, qf[1].z, qf[3].z), vec3(coord.xy, 1));
     float quad_term = qf[2].z;
 
     float delta = line_term * line_term - 4 * free_term * quad_term;
@@ -123,7 +128,7 @@ fn main() {
         right_mouse_button_down: false,
         current_mouse_position: None,
         previous_mouse_position: None,
-
+        resolution: glutin::dpi::PhysicalSize::new(WINDOW_WIDTH, WINDOW_HEIGHT),
         camera_position: Point::new(0.0, 0.0, 0.0),
         scale: 1.0,
     };
@@ -206,6 +211,17 @@ fn main() {
                     quadratic_form_matrix.with_type::<f32>().raw(),
                 );
 
+                let global_scale_location =
+                    gl.get_uniform_location(program, "global_scale").unwrap();
+                gl.uniform_1_f32(Some(&global_scale_location), GLOBAL_SCALE);
+
+                let resolution_location = gl.get_uniform_location(program, "resolution").unwrap();
+                gl.uniform_2_f32(
+                    Some(&resolution_location),
+                    app_state.resolution.width as f32,
+                    app_state.resolution.height as f32,
+                );
+
                 gl.bind_vertex_array(Some(vertex_array));
                 gl.draw_arrays(glow::TRIANGLES, 0, 6);
             }
@@ -267,6 +283,12 @@ fn main() {
                 } => {
                     app_state.previous_mouse_position = app_state.current_mouse_position;
                     app_state.current_mouse_position = Some(position);
+                }
+                Event::WindowEvent {
+                    event: WindowEvent::Resized(size),
+                    ..
+                } => {
+                    app_state.resolution = size;
                 }
                 _ => {}
             }
