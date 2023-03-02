@@ -34,6 +34,20 @@ impl<T: Float + Copy, const M: usize, const N: usize> Matrix<T, M, N> {
         &mut self.data[row][col]
     }
 
+    pub fn row(&self, i: usize) -> Matrix<T, 1, N> {
+        Matrix::from_data([self.data[i]])
+    }
+
+    pub fn col(&self, i: usize) -> Matrix<T, M, 1> {
+        let mut col = unsafe { Matrix::uninit() };
+
+        for j in 0..M {
+            col.data[0][j] = self.data[i][j];
+        }
+
+        col
+    }
+
     pub fn transpose(&self) -> Matrix<T, N, M> {
         let mut result = unsafe { Matrix::uninit() };
 
@@ -95,8 +109,13 @@ impl<T: Float + Copy, const M: usize, const N: usize> Matrix<T, M, N> {
         for i in 0..std::cmp::min(M, N) {
             let mut pivot = i;
 
-            while gepp_matrix.data[i][pivot] == T::from(0.0).unwrap() {
+            while gepp_matrix.data[i][pivot] == T::from(0.0).unwrap()
+            {
                 pivot += 1;
+
+                if pivot >= M {
+                    return None;
+                }
             }
 
             if pivot == N {

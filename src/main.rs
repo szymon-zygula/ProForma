@@ -1,9 +1,11 @@
 use proforma::{
     forms::{ellipsoid::Ellipsoid, implicit::QuadraticForm},
-    math::affine::{
-        self,
-        primitives::{Point, Vector},
-        transforms::AffineTransform,
+    math::{
+        affine::{
+            self,
+            primitives::{Point, Vector},
+        },
+        matrix::Matrix,
     },
     primitives::color::Color,
     window::Window,
@@ -17,6 +19,7 @@ const WINDOW_TITLE: &'static str = "ProForma";
 const WINDOW_WIDTH: u32 = 1280;
 const WINDOW_HEIGHT: u32 = 720;
 const GLOBAL_SCALE: f32 = 1000.0;
+const SCROLL_MULTIPLIER: f64 = 0.005;
 const CLEAR_COLOR: Color = Color {
     r: 0.4,
     g: 0.4,
@@ -36,6 +39,7 @@ struct State {
     pub current_mouse_position: Option<glutin::dpi::PhysicalPosition<f64>>,
     pub previous_mouse_position: Option<glutin::dpi::PhysicalPosition<f64>>,
     pub camera_position: Point,
+    pub camera_basis: Matrix<f64, 4, 4>,
     pub scale: f64,
     pub resolution: glutin::dpi::PhysicalSize<u32>,
 }
@@ -71,6 +75,8 @@ uniform mat4 qf;
 uniform vec2 resolution;
 uniform float global_scale;
 
+const float near_plane = 0.1;
+
 void main() {
     vec2 coord = vec2(vert.x * resolution.x, vert.y * resolution.y) / global_scale;
     float free_term = dot(coord.x * qf[0].xyw + coord.y * qf[1].xyw + qf[3].xyw, vec3(coord.xy, 1));
@@ -80,7 +86,19 @@ void main() {
     float delta = line_term * line_term - 4 * free_term * quad_term;
 
     if(delta >= 0.0) {
-        frag_color = vec4(1.0, 1.0, 0.0, 1.0);
+        float sqrt_delta = sqrt(delta);
+        float s1 = (-line_term - sqrt_delta) / (2 * quad_term);
+        float s2 = (-line_term + sqrt_delta) / (2 * quad_term);
+
+        if(s1 > near_plane && s2 > near_plane) {
+            frag_color = vec4(1.0, 1.0, 0.0, 1.0);
+        }
+        else if (s1 > near_plane || s2 > near_plane) {
+            frag_color = vec4(0.7, 0.7, 0.0, 1.0);
+        }
+        else {
+            frag_color = vec4(0.5, 0.5, 0.5, 1.0);
+        }
     }
     else {
         frag_color = vec4(0.5, 0.5, 0.5, 1.0);
@@ -89,7 +107,6 @@ void main() {
 "#;
 
 fn build_ui(ui: &mut imgui::Ui, state: &mut State) {
-    ui.show_demo_window(&mut true);
     ui.window("ProForma")
         .size([500.0, 500.0], imgui::Condition::FirstUseEver)
         .build(|| {
@@ -108,9 +125,9 @@ fn build_ui(ui: &mut imgui::Ui, state: &mut State) {
 
             ui.separator();
             ui.text("Camera control");
-            ui.slider("X", -1.0, 1.0, state.camera_position.at_mut(0));
-            ui.slider("Y", -1.0, 1.0, state.camera_position.at_mut(1));
-            ui.slider("Z", -1.0, 1.0, state.camera_position.at_mut(2));
+            ui.slider("X", -2.0, 2.0, state.camera_position.at_mut(0));
+            ui.slider("Y", -2.0, 2.0, state.camera_position.at_mut(1));
+            ui.slider("Z", -2.0, 2.0, state.camera_position.at_mut(2));
         });
 }
 
@@ -129,7 +146,13 @@ fn main() {
         current_mouse_position: None,
         previous_mouse_position: None,
         resolution: glutin::dpi::PhysicalSize::new(WINDOW_WIDTH, WINDOW_HEIGHT),
-        camera_position: Point::new(0.0, 0.0, 0.0),
+        camera_position: Point::new(0.0, 0.0, 1.0),
+        camera_basis: Matrix::from_data([
+            [-1.0, 0.0, 0.0, 0.0],
+            [0.0, 1.0, 0.0, 0.0],
+            [0.0, 0.0, -1.0, 0.0],
+            [0.0, 0.0, 0.0, 1.0],
+        ]),
         scale: 1.0,
     };
 
@@ -192,17 +215,36 @@ fn main() {
                 gl.clear(glow::COLOR_BUFFER_BIT);
                 gl.use_program(Some(program));
 
-                let transform_matrix =
-                    affine::transforms::translate(-Vector::to_point(app_state.camera_position));
+                let (change_x, change_y) = if app_state.left_mouse_button_down {
+                    app_state
+                        .previous_mouse_position
+                        .zip(app_state.current_mouse_position)
+                        .map(|(prev, cur)| {
+                            (
+                                (prev.x - cur.x) as f64 * SCROLL_MULTIPLIER,
+                                (prev.y - cur.y) as f64 * SCROLL_MULTIPLIER,
+                            )
+                        })
+                        .unwrap_or((0.0, 0.0))
+                } else {
+                    (0.0, 0.0)
+                };
 
-                let quadratic_form_matrix =
-                    if let Some(inverse_transform_matrix) = transform_matrix.inverse() {
-                        inverse_transform_matrix.transpose()
-                            * ellipsoid.quadratic_form_matrix()
-                            * inverse_transform_matrix
-                    } else {
-                        AffineTransform::identity()
-                    };
+                if app_state.previous_mouse_position.is_some() {
+                    app_state.previous_mouse_position = None;
+                }
+
+                app_state.camera_basis = app_state.camera_basis
+                    * affine::transforms::rotate_y(change_x)
+                    * affine::transforms::rotate_x(change_y);
+
+                let transform_matrix = app_state.camera_basis.inverse().unwrap()
+                    * affine::transforms::translate(-Vector::to_point(app_state.camera_position));
+
+                let inverse_transform = transform_matrix.inverse().unwrap();
+                let quadratic_form_matrix = inverse_transform.transpose()
+                    * ellipsoid.quadratic_form_matrix()
+                    * inverse_transform;
 
                 let quadratic_form_location = gl.get_uniform_location(program, "qf").unwrap();
                 gl.uniform_matrix_4_f32_slice(
