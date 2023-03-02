@@ -32,7 +32,7 @@ struct State {
     pub rx: f64,
     pub ry: f64,
     pub rz: f64,
-    pub divisions: u32,
+    pub divs: i32,
     pub light_intensity: f64,
     pub left_mouse_button_down: bool,
     pub right_mouse_button_down: bool,
@@ -74,11 +74,13 @@ out vec4 frag_color;
 uniform mat4 qf;
 uniform vec2 resolution;
 uniform float global_scale;
+uniform int divs;
 
 const float near_plane = 0.1;
 
 void main() {
     vec2 coord = vec2(vert.x * resolution.x, vert.y * resolution.y) / global_scale;
+    coord = round(coord * global_scale / divs) * divs / global_scale;
     float free_term = dot(coord.x * qf[0].xyw + coord.y * qf[1].xyw + qf[3].xyw, vec3(coord.xy, 1));
     float line_term = dot(qf[2].xyw + vec3(qf[0].z, qf[1].z, qf[3].z), vec3(coord.xy, 1));
     float quad_term = qf[2].z;
@@ -117,7 +119,7 @@ fn build_ui(ui: &mut imgui::Ui, state: &mut State) {
 
             ui.separator();
             ui.text("Render control");
-            ui.slider("Max render division", 1, 64, &mut state.divisions);
+            ui.slider("Max render division", 1, 64, &mut state.divs);
 
             ui.separator();
             ui.text("Light control");
@@ -139,7 +141,7 @@ fn main() {
         rx: 0.5,
         ry: 0.5,
         rz: 0.5,
-        divisions: 16,
+        divs: 16,
         light_intensity: 0.5,
         left_mouse_button_down: false,
         right_mouse_button_down: false,
@@ -256,6 +258,9 @@ fn main() {
                 let global_scale_location =
                     gl.get_uniform_location(program, "global_scale").unwrap();
                 gl.uniform_1_f32(Some(&global_scale_location), GLOBAL_SCALE);
+
+                let divisions_location = gl.get_uniform_location(program, "divs").unwrap();
+                gl.uniform_1_i32(Some(&divisions_location), app_state.divs);
 
                 let resolution_location = gl.get_uniform_location(program, "resolution").unwrap();
                 gl.uniform_2_f32(
