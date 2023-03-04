@@ -12,11 +12,6 @@ impl<T: Float + Copy, const M: usize, const N: usize> Matrix<T, M, N> {
         Matrix::<T, M, N> { data }
     }
 
-    pub unsafe fn uninit() -> Matrix<T, M, N> {
-        let data = std::mem::MaybeUninit::uninit().assume_init();
-        Matrix::<T, M, N> { data }
-    }
-
     pub fn from_data(data: [[T; N]; M]) -> Matrix<T, M, N> {
         Matrix::<T, M, N> { data }
     }
@@ -39,7 +34,7 @@ impl<T: Float + Copy, const M: usize, const N: usize> Matrix<T, M, N> {
     }
 
     pub fn col(&self, i: usize) -> Matrix<T, M, 1> {
-        let mut col = unsafe { Matrix::uninit() };
+        let mut col = Matrix::zero();
 
         for j in 0..M {
             col.data[0][j] = self.data[i][j];
@@ -49,7 +44,7 @@ impl<T: Float + Copy, const M: usize, const N: usize> Matrix<T, M, N> {
     }
 
     pub fn transpose(&self) -> Matrix<T, N, M> {
-        let mut result = unsafe { Matrix::uninit() };
+        let mut result = Matrix::zero();
 
         for row in 0..M {
             for col in 0..N {
@@ -61,7 +56,7 @@ impl<T: Float + Copy, const M: usize, const N: usize> Matrix<T, M, N> {
     }
 
     pub fn with_type<U: Float>(&self) -> Matrix<U, M, N> {
-        let mut result = unsafe { Matrix::<U, M, N>::uninit() };
+        let mut result = Matrix::<U, M, N>::zero();
 
         for row in 0..M {
             for col in 0..N {
@@ -73,9 +68,7 @@ impl<T: Float + Copy, const M: usize, const N: usize> Matrix<T, M, N> {
     }
 
     pub fn swap_rows(&mut self, row1: usize, row2: usize) {
-        let copy = self.data[row1];
-        self.data[row1] = self.data[row2];
-        self.data[row2] = copy;
+        self.data.swap(row1, row2);
     }
 
     pub fn add_row1_to_row2(&mut self, row1: usize, row2: usize, multiplier: T) {
@@ -109,8 +102,7 @@ impl<T: Float + Copy, const M: usize, const N: usize> Matrix<T, M, N> {
         for i in 0..std::cmp::min(M, N) {
             let mut pivot = i;
 
-            while gepp_matrix.data[i][pivot] == T::from(0.0).unwrap()
-            {
+            while gepp_matrix.data[i][pivot] == T::from(0.0).unwrap() {
                 pivot += 1;
 
                 if pivot >= M {
@@ -199,7 +191,7 @@ impl<T: Float, const M: usize, const N: usize> std::ops::Add<Matrix<T, M, N>> fo
     type Output = Matrix<T, M, N>;
 
     fn add(self, rhs: Matrix<T, M, N>) -> Self::Output {
-        let mut result = unsafe { Self::Output::uninit() };
+        let mut result = Self::Output::zero();
 
         for row in 0..M {
             for col in 0..N {
@@ -254,7 +246,7 @@ where
         }
 
         write_row(M - 1, formatter)?;
-        write!(formatter, "]\n")?;
+        writeln!(formatter, "]")?;
 
         Ok(())
     }

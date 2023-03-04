@@ -15,7 +15,7 @@ use std::time::Instant;
 
 use glow::HasContext;
 
-const WINDOW_TITLE: &'static str = "ProForma";
+const WINDOW_TITLE: &str = "ProForma";
 const WINDOW_WIDTH: u32 = 1280;
 const WINDOW_HEIGHT: u32 = 720;
 const GLOBAL_SCALE: f32 = 1000.0;
@@ -33,6 +33,7 @@ struct State {
     pub ry: f64,
     pub rz: f64,
     pub divs: i32,
+    pub max_divs: i32,
     pub light_intensity: f64,
     pub left_mouse_button_down: bool,
     pub right_mouse_button_down: bool,
@@ -119,7 +120,7 @@ fn build_ui(ui: &mut imgui::Ui, state: &mut State) {
 
             ui.separator();
             ui.text("Render control");
-            ui.slider("Max render division", 1, 64, &mut state.divs);
+            ui.slider("Max render division", 1, 64, &mut state.max_divs);
 
             ui.separator();
             ui.text("Light control");
@@ -141,7 +142,8 @@ fn main() {
         rx: 0.5,
         ry: 0.5,
         rz: 0.5,
-        divs: 16,
+        divs: 1,
+        max_divs: 32,
         light_intensity: 0.5,
         left_mouse_button_down: false,
         right_mouse_button_down: false,
@@ -171,7 +173,7 @@ fn main() {
     for (kind, source, handle) in &mut shaders {
         unsafe {
             let shader = gl.create_shader(*kind).unwrap();
-            gl.shader_source(shader, *source);
+            gl.shader_source(shader, source);
             gl.compile_shader(shader);
 
             if !gl.get_shader_compile_status(shader) {
@@ -224,8 +226,8 @@ fn main() {
                             .zip(app_state.current_mouse_position)
                             .map(|(prev, cur)| {
                                 (
-                                    (prev.x - cur.x) as f64 * SCROLL_MULTIPLIER,
-                                    (prev.y - cur.y) as f64 * SCROLL_MULTIPLIER,
+                                    (prev.x - cur.x) * SCROLL_MULTIPLIER,
+                                    (prev.y - cur.y) * SCROLL_MULTIPLIER,
                                 )
                             })
                             .unwrap_or((0.0, 0.0))
@@ -235,6 +237,12 @@ fn main() {
 
                 if app_state.previous_mouse_position.is_some() {
                     app_state.previous_mouse_position = None;
+                }
+
+                if change_x == 0.0 && change_y == 0.0 {
+                    app_state.divs = std::cmp::max(app_state.divs - 1, 1);
+                } else {
+                    app_state.divs = app_state.max_divs;
                 }
 
                 app_state.camera_basis = app_state.camera_basis
