@@ -18,8 +18,8 @@ use glow::HasContext;
 const WINDOW_TITLE: &str = "ProForma";
 const WINDOW_WIDTH: u32 = 1280;
 const WINDOW_HEIGHT: u32 = 720;
-const GLOBAL_SCALE: f32 = 1000.0;
 const SCROLL_MULTIPLIER: f64 = 0.005;
+const SCALE_STEP: f32 = 50.0;
 const CLEAR_COLOR: Color = Color {
     r: 0.4,
     g: 0.4,
@@ -41,7 +41,8 @@ struct State {
     pub previous_mouse_position: Option<glutin::dpi::PhysicalPosition<f64>>,
     pub camera_position: Point,
     pub camera_basis: Matrix<f64, 4, 4>,
-    pub scale: f64,
+    pub scroll_delta: f32,
+    pub scale: f32,
     pub resolution: glutin::dpi::PhysicalSize<u32>,
 }
 
@@ -74,14 +75,14 @@ out vec4 frag_color;
 
 uniform mat4 qf;
 uniform vec2 resolution;
-uniform float global_scale;
+uniform float scale;
 uniform int divs;
 
 const float near_plane = 0.1;
 
 void main() {
-    vec2 coord = vec2(vert.x * resolution.x, vert.y * resolution.y) / global_scale;
-    coord = round(coord * global_scale / divs) * divs / global_scale;
+    vec2 coord = vec2(vert.x * resolution.x, vert.y * resolution.y);
+    coord = round(coord / divs) * divs / scale;
     float free_term = dot(coord.x * qf[0].xyw + coord.y * qf[1].xyw + qf[3].xyw, vec3(coord.xy, 1));
     float line_term = dot(qf[2].xyw + vec3(qf[0].z, qf[1].z, qf[3].z), vec3(coord.xy, 1));
     float quad_term = qf[2].z;
@@ -127,10 +128,26 @@ fn build_ui(ui: &mut imgui::Ui, state: &mut State) {
             ui.slider("Intensity", 0.0, 1.0, &mut state.light_intensity);
 
             ui.separator();
-            ui.text("Camera control");
-            ui.slider("X", -2.0, 2.0, state.camera_position.at_mut(0));
-            ui.slider("Y", -2.0, 2.0, state.camera_position.at_mut(1));
-            ui.slider("Z", -2.0, 2.0, state.camera_position.at_mut(2));
+            ui.text("Info");
+            ui.text(format!(
+                "Camera position (x, y, z): {:.4}, {:.4}, {:.4}",
+                state.camera_position.at(0),
+                state.camera_position.at(1),
+                state.camera_position.at(2)
+            ));
+            ui.text(format!(
+                "View vector (x, y, z): {:.4}, {:.4}, {:.4}",
+                state.camera_basis.at(0, 2),
+                state.camera_basis.at(1, 2),
+                state.camera_basis.at(2, 2)
+            ));
+            ui.text(format!(
+                "Up vector (x, y, z): {:.4}, {:.4}, {:.4}",
+                state.camera_basis.at(0, 1),
+                state.camera_basis.at(1, 1),
+                state.camera_basis.at(2, 1)
+            ));
+            ui.text(format!("Scale: {}", state.scale / SCALE_STEP / 20.0));
         });
 }
 
@@ -149,6 +166,7 @@ fn main() {
         right_mouse_button_down: false,
         current_mouse_position: None,
         previous_mouse_position: None,
+        scroll_delta: 0.0,
         resolution: glutin::dpi::PhysicalSize::new(WINDOW_WIDTH, WINDOW_HEIGHT),
         camera_position: Point::new(0.0, 0.0, 1.0),
         camera_basis: Matrix::from_data([
@@ -157,7 +175,7 @@ fn main() {
             [0.0, 0.0, -1.0, 0.0],
             [0.0, 0.0, 0.0, 1.0],
         ]),
-        scale: 1.0,
+        scale: 1000.0,
     };
 
     let mut shaders = [
@@ -219,35 +237,65 @@ fn main() {
                 gl.clear(glow::COLOR_BUFFER_BIT);
                 gl.use_program(Some(program));
 
-                let (change_x, change_y) =
-                    if app_state.left_mouse_button_down && !window.imgui_using_mouse() {
-                        app_state
-                            .previous_mouse_position
-                            .zip(app_state.current_mouse_position)
-                            .map(|(prev, cur)| {
-                                (
-                                    (prev.x - cur.x) * SCROLL_MULTIPLIER,
-                                    (prev.y - cur.y) * SCROLL_MULTIPLIER,
-                                )
-                            })
-                            .unwrap_or((0.0, 0.0))
+                let (change_x, change_y) = if !window.imgui_using_mouse() {
+                    app_state
+                        .previous_mouse_position
+                        .zip(app_state.current_mouse_position)
+                        .map(|(prev, cur)| {
+                            (
+                                (prev.x - cur.x) * SCROLL_MULTIPLIER,
+                                (prev.y - cur.y) * SCROLL_MULTIPLIER,
+                            )
+                        })
+                        .unwrap_or((0.0, 0.0))
+                } else {
+                    (0.0, 0.0)
+                };
+
+                let mut change = false;
+
+                if app_state.scroll_delta != 0.0 {
+                    if app_state.right_mouse_button_down {
+                        app_state.camera_position = app_state.camera_position
+                            + app_state.camera_basis
+                                * Vector::new(0.0, 0.0, app_state.scroll_delta as f64 * 0.1);
+                    } else if app_state.left_mouse_button_down {
+                        app_state.camera_basis = app_state.camera_basis
+                            * affine::transforms::rotate_z(app_state.scroll_delta as f64 * 0.1);
                     } else {
-                        (0.0, 0.0)
-                    };
+                        app_state.scale += app_state.scroll_delta * SCALE_STEP;
+
+                        if app_state.scale < SCALE_STEP {
+                            app_state.scale = SCALE_STEP;
+                        }
+                    }
+
+                    app_state.scroll_delta = 0.0;
+                    change = true;
+                }
 
                 if app_state.previous_mouse_position.is_some() {
                     app_state.previous_mouse_position = None;
                 }
 
-                if change_x == 0.0 && change_y == 0.0 {
+                let mouse_moved = change_x != 0.0 || change_y != 0.0;
+
+                if app_state.left_mouse_button_down && mouse_moved {
+                    app_state.camera_basis = app_state.camera_basis
+                        * affine::transforms::rotate_y(change_x)
+                        * affine::transforms::rotate_x(change_y);
+                    change = true;
+                } else if app_state.right_mouse_button_down && mouse_moved {
+                    app_state.camera_position = app_state.camera_position
+                        + app_state.camera_basis * Vector::new(change_x, -change_y, 0.0);
+                    change = true;
+                }
+
+                if !change {
                     app_state.divs = std::cmp::max(app_state.divs - 1, 1);
                 } else {
                     app_state.divs = app_state.max_divs;
                 }
-
-                app_state.camera_basis = app_state.camera_basis
-                    * affine::transforms::rotate_y(change_x)
-                    * affine::transforms::rotate_x(change_y);
 
                 let transform_matrix = app_state.camera_basis.inverse().unwrap()
                     * affine::transforms::translate(-Vector::to_point(app_state.camera_position));
@@ -264,9 +312,8 @@ fn main() {
                     quadratic_form_matrix.with_type::<f32>().raw(),
                 );
 
-                let global_scale_location =
-                    gl.get_uniform_location(program, "global_scale").unwrap();
-                gl.uniform_1_f32(Some(&global_scale_location), GLOBAL_SCALE);
+                let scale_location = gl.get_uniform_location(program, "scale").unwrap();
+                gl.uniform_1_f32(Some(&scale_location), app_state.scale);
 
                 let divisions_location = gl.get_uniform_location(program, "divs").unwrap();
                 gl.uniform_1_i32(Some(&divisions_location), app_state.divs);
@@ -292,7 +339,7 @@ fn main() {
                 },
             ..
         } => {
-            // TODO
+            app_state.scroll_delta = delta;
         }
         Event::WindowEvent {
             event: WindowEvent::CloseRequested,
