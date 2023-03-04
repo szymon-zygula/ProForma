@@ -34,7 +34,7 @@ struct State {
     pub rz: f64,
     pub divs: i32,
     pub max_divs: i32,
-    pub light_intensity: f64,
+    pub light_intensity: f32,
     pub left_mouse_button_down: bool,
     pub right_mouse_button_down: bool,
     pub current_mouse_position: Option<glutin::dpi::PhysicalPosition<f64>>,
@@ -76,9 +76,13 @@ out vec4 frag_color;
 uniform mat4 qf;
 uniform vec2 resolution;
 uniform float scale;
+uniform float light_intensity;
 uniform int divs;
 
 const float near_plane = 0.1;
+const vec4 outside_color = vec4(1.0, 1.0, 0.0, 1.0);
+const vec4 inside_color = vec4(0.7, 0.7, 0.0, 1.0);
+const vec4 void_color = vec4(0.5, 0.5, 0.5, 1.0);
 
 void main() {
     vec2 coord = vec2(vert.x * resolution.x, vert.y * resolution.y);
@@ -94,38 +98,42 @@ void main() {
         float s1 = (-line_term - sqrt_delta) / (2 * quad_term);
         float s2 = (-line_term + sqrt_delta) / (2 * quad_term);
 
+        mat4 qf_transposium = transpose(qf + transpose(qf));
+
         if(s1 > near_plane && s2 > near_plane) {
-            frag_color = vec4(1.0, 1.0, 0.0, 1.0);
+            vec3 to_observer = normalize(-vec3(coord.x, coord.y, s1));
+            vec4 derivative_s1 = qf_transposium * vec4(coord.x, coord.y, s1, 1.0);
+            vec3 normal_s1 = normalize(derivative_s1.xyz);
+            float light = pow(dot(normal_s1, to_observer), light_intensity);
+            frag_color = outside_color * light;
         }
         else if (s1 > near_plane || s2 > near_plane) {
-            frag_color = vec4(0.7, 0.7, 0.0, 1.0);
+            frag_color = inside_color;
         }
         else {
-            frag_color = vec4(0.5, 0.5, 0.5, 1.0);
+            frag_color = void_color;
         }
     }
     else {
-        frag_color = vec4(0.5, 0.5, 0.5, 1.0);
+        frag_color = void_color;
     }
 }
 "#;
 
 fn build_ui(ui: &mut imgui::Ui, state: &mut State) {
     ui.window("ProForma")
-        .size([500.0, 500.0], imgui::Condition::FirstUseEver)
+        .size([500.0, 300.0], imgui::Condition::FirstUseEver)
+        .position([0.0, 0.0], imgui::Condition::FirstUseEver)
         .build(|| {
             ui.text("Ellipsoid control");
-            ui.slider("r_x", 0.0, 1.0, &mut state.rx);
-            ui.slider("r_y", 0.0, 1.0, &mut state.ry);
-            ui.slider("r_z", 0.0, 1.0, &mut state.rz);
+            ui.slider("r_x", 0.001, 5.0, &mut state.rx);
+            ui.slider("r_y", 0.001, 5.0, &mut state.ry);
+            ui.slider("r_z", 0.001, 5.0, &mut state.rz);
 
             ui.separator();
             ui.text("Render control");
             ui.slider("Max render division", 1, 64, &mut state.max_divs);
-
-            ui.separator();
-            ui.text("Light control");
-            ui.slider("Intensity", 0.0, 1.0, &mut state.light_intensity);
+            ui.slider("Light intensity", 0.0, 100.0, &mut state.light_intensity);
 
             ui.separator();
             ui.text("Info");
@@ -160,7 +168,7 @@ fn main() {
         ry: 0.5,
         rz: 0.5,
         divs: 1,
-        max_divs: 32,
+        max_divs: 8,
         light_intensity: 0.5,
         left_mouse_button_down: false,
         right_mouse_button_down: false,
@@ -314,6 +322,10 @@ fn main() {
 
                 let scale_location = gl.get_uniform_location(program, "scale").unwrap();
                 gl.uniform_1_f32(Some(&scale_location), app_state.scale);
+
+                let light_intensity_location =
+                    gl.get_uniform_location(program, "light_intensity").unwrap();
+                gl.uniform_1_f32(Some(&light_intensity_location), app_state.light_intensity);
 
                 let divisions_location = gl.get_uniform_location(program, "divs").unwrap();
                 gl.uniform_1_i32(Some(&divisions_location), app_state.divs);
