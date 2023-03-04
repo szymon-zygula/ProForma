@@ -217,20 +217,21 @@ fn main() {
                 gl.clear(glow::COLOR_BUFFER_BIT);
                 gl.use_program(Some(program));
 
-                let (change_x, change_y) = if app_state.left_mouse_button_down {
-                    app_state
-                        .previous_mouse_position
-                        .zip(app_state.current_mouse_position)
-                        .map(|(prev, cur)| {
-                            (
-                                (prev.x - cur.x) as f64 * SCROLL_MULTIPLIER,
-                                (prev.y - cur.y) as f64 * SCROLL_MULTIPLIER,
-                            )
-                        })
-                        .unwrap_or((0.0, 0.0))
-                } else {
-                    (0.0, 0.0)
-                };
+                let (change_x, change_y) =
+                    if app_state.left_mouse_button_down && !window.imgui_using_mouse() {
+                        app_state
+                            .previous_mouse_position
+                            .zip(app_state.current_mouse_position)
+                            .map(|(prev, cur)| {
+                                (
+                                    (prev.x - cur.x) as f64 * SCROLL_MULTIPLIER,
+                                    (prev.y - cur.y) as f64 * SCROLL_MULTIPLIER,
+                                )
+                            })
+                            .unwrap_or((0.0, 0.0))
+                    } else {
+                        (0.0, 0.0)
+                    };
 
                 if app_state.previous_mouse_position.is_some() {
                     app_state.previous_mouse_position = None;

@@ -68,7 +68,7 @@ impl Window {
         (imgui_context, winit_platform)
     }
 
-    pub fn gl(&mut self) -> &glow::Context {
+    pub fn gl(&self) -> &glow::Context {
         self.imgui_renderer.gl_context()
     }
 
@@ -101,6 +101,10 @@ impl Window {
 
         self.imgui_renderer.render(draw_data).unwrap();
         self.windowed_context.swap_buffers().unwrap();
+    }
+
+    pub fn imgui_using_mouse(&self) -> bool {
+        self.imgui_context.io().want_capture_mouse
     }
 
     pub fn handle_event(&mut self, event: glutin::event::Event<()>) {
