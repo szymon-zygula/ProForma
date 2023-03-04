@@ -295,7 +295,12 @@ fn main() {
                     change = true;
                 } else if app_state.right_mouse_button_down && mouse_moved {
                     app_state.camera_position = app_state.camera_position
-                        + app_state.camera_basis * Vector::new(change_x, -change_y, 0.0);
+                        + app_state.camera_basis
+                            * Vector::new(
+                                SCALE_STEP as f64 * 40.0 * change_x / app_state.scale as f64,
+                                SCALE_STEP as f64 * 40.0 * -change_y / app_state.scale as f64,
+                                0.0,
+                            );
                     change = true;
                 }
 
