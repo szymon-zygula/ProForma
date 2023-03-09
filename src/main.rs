@@ -79,7 +79,7 @@ uniform float scale;
 uniform float light_intensity;
 uniform int divs;
 
-const float near_plane = 0.1;
+const float near_plane = 0.001;
 const vec4 outside_color = vec4(1.0, 1.0, 0.0, 1.0);
 const vec4 inside_color = vec4(0.7, 0.7, 0.0, 1.0);
 const vec4 void_color = vec4(0.5, 0.5, 0.5, 1.0);
@@ -305,7 +305,7 @@ fn main() {
                 }
 
                 if !change {
-                    app_state.divs = std::cmp::max(app_state.divs - 1, 1);
+                    app_state.divs = std::cmp::max(app_state.divs / 2, 1);
                 } else {
                     app_state.divs = app_state.max_divs;
                 }
