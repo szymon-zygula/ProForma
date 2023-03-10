@@ -79,6 +79,7 @@ pub fn scale(sx: f64, sy: f64, sz: f64) -> AffineTransform {
     *scaling.at_mut(0, 0) = sx;
     *scaling.at_mut(1, 1) = sy;
     *scaling.at_mut(2, 2) = sz;
+    *scaling.at_mut(3, 3) = 1.0;
 
     scaling
 }

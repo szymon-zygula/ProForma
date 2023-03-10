@@ -75,7 +75,6 @@ out vec4 frag_color;
 
 uniform mat4 qf;
 uniform vec2 resolution;
-uniform float scale;
 uniform float light_intensity;
 uniform int divs;
 
@@ -83,10 +82,11 @@ const float near_plane = 0.001;
 const vec4 outside_color = vec4(1.0, 1.0, 0.0, 1.0);
 const vec4 inside_color = vec4(0.7, 0.7, 0.0, 1.0);
 const vec4 void_color = vec4(0.5, 0.5, 0.5, 1.0);
+const float g_scale = 1000.0;
 
 void main() {
     vec2 coord = vec2(vert.x * resolution.x, vert.y * resolution.y);
-    coord = round(coord / divs) * divs / scale;
+    coord = round(coord / divs) * divs / g_scale;
     float free_term = dot(coord.x * qf[0].xyw + coord.y * qf[1].xyw + qf[3].xyw, vec3(coord.xy, 1));
     float line_term = dot(qf[2].xyw + vec3(qf[0].z, qf[1].z, qf[3].z), vec3(coord.xy, 1));
     float quad_term = qf[2].z;
@@ -155,7 +155,7 @@ fn build_ui(ui: &mut imgui::Ui, state: &mut State) {
                 state.camera_basis.at(1, 1),
                 state.camera_basis.at(2, 1)
             ));
-            ui.text(format!("Scale: {}", state.scale / SCALE_STEP / 20.0));
+            ui.text(format!("Scale: {}", state.scale));
         });
 }
 
@@ -183,7 +183,7 @@ fn main() {
             [0.0, 0.0, -1.0, 0.0],
             [0.0, 0.0, 0.0, 1.0],
         ]),
-        scale: 1000.0,
+        scale: 1.0,
     };
 
     let mut shaders = [
@@ -271,10 +271,10 @@ fn main() {
                         app_state.camera_basis = app_state.camera_basis
                             * affine::transforms::rotate_z(app_state.scroll_delta as f64 * 0.1);
                     } else {
-                        app_state.scale += app_state.scroll_delta * SCALE_STEP;
+                        app_state.scale += app_state.scroll_delta / 100.0;
 
-                        if app_state.scale < SCALE_STEP {
-                            app_state.scale = SCALE_STEP;
+                        if app_state.scale < 0.00001 {
+                            app_state.scale = 0.00001;
                         }
                     }
 
@@ -297,8 +297,8 @@ fn main() {
                     app_state.camera_position = app_state.camera_position
                         + app_state.camera_basis
                             * Vector::new(
-                                SCALE_STEP as f64 * 40.0 * change_x / app_state.scale as f64,
-                                SCALE_STEP as f64 * 40.0 * -change_y / app_state.scale as f64,
+                                SCALE_STEP as f64 * 40.0 * change_x / 500.0,
+                                SCALE_STEP as f64 * 40.0 * -change_y / 500.0,
                                 0.0,
                             );
                     change = true;
@@ -311,7 +311,8 @@ fn main() {
                 }
 
                 let transform_matrix = app_state.camera_basis.inverse().unwrap()
-                    * affine::transforms::translate(-Vector::to_point(app_state.camera_position));
+                    * affine::transforms::translate(-Vector::to_point(app_state.camera_position)) *
+                    affine::transforms::scale(app_state.scale as f64, app_state.scale as f64, app_state.scale as f64);
 
                 let inverse_transform = transform_matrix.inverse().unwrap();
                 let quadratic_form_matrix = inverse_transform.transpose()
@@ -324,9 +325,6 @@ fn main() {
                     true,
                     quadratic_form_matrix.with_type::<f32>().raw(),
                 );
-
-                let scale_location = gl.get_uniform_location(program, "scale").unwrap();
-                gl.uniform_1_f32(Some(&scale_location), app_state.scale);
 
                 let light_intensity_location =
                     gl.get_uniform_location(program, "light_intensity").unwrap();
