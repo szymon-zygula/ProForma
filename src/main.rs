@@ -104,7 +104,10 @@ void main() {
             vec3 to_observer = normalize(-vec3(coord.x, coord.y, s1));
             vec4 derivative_s1 = qf_transposium * vec4(coord.x, coord.y, s1, 1.0);
             vec3 normal_s1 = normalize(derivative_s1.xyz);
-            float light = pow(dot(normal_s1, to_observer), light_intensity);
+            float p = dot(normal_s1, to_observer);
+            float light;
+            if(p > 0) light = pow(p, light_intensity);
+            else light = 0;
             frag_color = outside_color * light;
         }
         else if (s1 > near_plane || s2 > near_plane) {
@@ -126,9 +129,9 @@ fn build_ui(ui: &mut imgui::Ui, state: &mut State) {
         .position([0.0, 0.0], imgui::Condition::FirstUseEver)
         .build(|| {
             ui.text("Ellipsoid control");
-            ui.slider("r_x", 0.001, 5.0, &mut state.rx);
-            ui.slider("r_y", 0.001, 5.0, &mut state.ry);
-            ui.slider("r_z", 0.001, 5.0, &mut state.rz);
+            ui.slider("r_x", 0.01, 5.0, &mut state.rx);
+            ui.slider("r_y", 0.01, 5.0, &mut state.ry);
+            ui.slider("r_z", 0.01, 5.0, &mut state.rz);
 
             ui.separator();
             ui.text("Render control");
@@ -273,8 +276,8 @@ fn main() {
                     } else {
                         app_state.scale += app_state.scroll_delta / 100.0;
 
-                        if app_state.scale < 0.00001 {
-                            app_state.scale = 0.00001;
+                        if app_state.scale < 0.01 {
+                            app_state.scale = 0.01;
                         }
                     }
 
